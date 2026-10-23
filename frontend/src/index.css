@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+    --font-display: "Chivo", "IBM Plex Sans", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: #ffffff;
+    color: #020617;
+}
+
+code,
+pre,
+.font-mono {
+    font-family: var(--font-mono);
+}
+
+.font-display {
+    font-family: var(--font-display);
+}
+
+@layer base {
+    :root {
+        --background: 0 0% 100%;
+        --foreground: 222 47% 4%;
+        --card: 0 0% 100%;
+        --card-foreground: 222 47% 4%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222 47% 4%;
+        --primary: 222 47% 4%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 210 20% 96%;
+        --secondary-foreground: 222 47% 4%;
+        --muted: 210 20% 96%;
+        --muted-foreground: 215 16% 47%;
+        --accent: 210 20% 96%;
+        --accent-foreground: 222 47% 4%;
+        --destructive: 0 72% 51%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 214 20% 90%;
+        --input: 214 20% 90%;
+        --ring: 222 47% 4%;
+        --chart-1: 0 72% 51%;
+        --chart-2: 38 92% 50%;
+        --chart-3: 217 91% 60%;
+        --chart-4: 160 84% 39%;
+        --chart-5: 262 83% 58%;
+        --radius: 0.125rem;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+/* Selection */
+::selection {
+    background: #020617;
+    color: #ffffff;
+}
+
+/* Thin, technical scrollbars */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+::-webkit-scrollbar-track {
+    background: #f8fafc;
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border: 2px solid #f8fafc;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* AI explanation editorial block */
+.ai-block {
+    background: #fffce8;
+    border: 1px solid #fde68a;
+    border-left-width: 4px;
+    border-left-color: #f59e0b;
+    font-family: var(--font-sans);
+    line-height: 1.65;
+    white-space: pre-wrap;
+}
+
+.ai-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #92400e;
+}
+
+/* Tabular numbers for tables */
+.tabular {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Subtle data grid cell border strategy */
+.grid-row:not(:last-child) {
+    border-bottom: 1px solid rgb(226 232 240);
+}
+.grid-row:hover {
+    background: rgb(248 250 252);
+}
+
+/* Animated pulse for live alerts dot */
+@keyframes pulse-dot {
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.4;
+        transform: scale(1.4);
+    }
+}
+.pulse-dot {
+    animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+@layer base {
+    [data-debug-wrapper="true"] {
+        display: contents !important;
+    }
+    [data-debug-wrapper="true"] > * {
+        margin-left: inherit;
+        margin-right: inherit;
+        margin-top: inherit;
+        margin-bottom: inherit;
+        padding-left: inherit;
+        padding-right: inherit;
+        padding-top: inherit;
+        padding-bottom: inherit;
+        column-gap: inherit;
+        row-gap: inherit;
+        gap: inherit;
+        border-left-width: inherit;
+        border-right-width: inherit;
+        border-top-width: inherit;
+        border-bottom-width: inherit;
+        border-left-style: inherit;
+        border-right-style: inherit;
+        border-top-style: inherit;
+        border-bottom-style: inherit;
+        border-left-color: inherit;
+        border-right-color: inherit;
+        border-top-color: inherit;
+        border-bottom-color: inherit;
+    }
+}

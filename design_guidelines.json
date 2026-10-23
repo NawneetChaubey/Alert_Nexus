@@ -1,0 +1,122 @@
+{
+  "theme": "light",
+  "archetype": "Archetype 4 (Swiss & High-Contrast)",
+  "vibe": "Bloomberg terminal, Palantir Foundry, The Information, data-journalism, editorial, dense, trustworthy",
+  "typography": {
+    "headings": {
+      "fontFamily": "Chivo, sans-serif",
+      "weights": ["400", "700", "900"],
+      "tracking": "tracking-tight"
+    },
+    "body": {
+      "fontFamily": "'IBM Plex Sans', sans-serif",
+      "weights": ["400", "500", "600"]
+    },
+    "monospace": {
+      "fontFamily": "'IBM Plex Mono', monospace",
+      "usage": "Data lineage values, confidence scores, ingestion stats, and AI block labels"
+    },
+    "hierarchy": {
+      "h1": "text-4xl font-bold tracking-tight text-slate-950",
+      "h2": "text-2xl font-semibold tracking-tight text-slate-900",
+      "h3": "text-lg font-medium text-slate-900",
+      "body": "text-sm text-slate-700 leading-relaxed",
+      "small": "text-xs text-slate-500 uppercase tracking-widest"
+    }
+  },
+  "colors": {
+    "background": {
+      "default": "bg-white",
+      "panel": "bg-slate-50",
+      "sidebar": "bg-slate-950"
+    },
+    "text": {
+      "primary": "text-slate-950",
+      "secondary": "text-slate-600",
+      "muted": "text-slate-400",
+      "inverse": "text-white"
+    },
+    "border": {
+      "default": "border-slate-200",
+      "focus": "border-slate-950",
+      "sidebar": "border-slate-800"
+    },
+    "severity": {
+      "high": {
+        "bg": "bg-red-50",
+        "text": "text-red-700",
+        "border": "border-red-200",
+        "solid": "bg-red-600 text-white"
+      },
+      "medium": {
+        "bg": "bg-amber-50",
+        "text": "text-amber-700",
+        "border": "border-amber-200",
+        "solid": "bg-amber-500 text-white"
+      },
+      "low": {
+        "bg": "bg-blue-50",
+        "text": "text-blue-700",
+        "border": "border-blue-200",
+        "solid": "bg-blue-600 text-white"
+      },
+      "unknown": {
+        "bg": "bg-slate-100",
+        "text": "text-slate-700",
+        "border": "border-slate-200",
+        "solid": "bg-slate-500 text-white"
+      }
+    },
+    "accents": {
+      "ai_block": "bg-[#FFFCE8] border-[#FDE68A]",
+      "confidence_high": "bg-emerald-500",
+      "confidence_medium": "bg-amber-500",
+      "confidence_low": "bg-rose-500"
+    }
+  },
+  "layout_and_spacing": {
+    "grid_system": "Control Room Grid (Mode B) - Dense and functional. `grid-cols-4` to `grid-cols-12`.",
+    "container_padding": "p-4 or p-6 for widgets, keeping it dense.",
+    "surface_strategy": "Grid Borders (The Technical Look). Exposed skeleton, pure 1px solid borders, `rounded-sm` or `rounded-none`. Avoid soft box-shadows. Use F-pattern architecture.",
+    "alignment": "Strict left-alignment for data tables and dense lists. Numbers should be tabular and right-aligned where appropriate."
+  },
+  "components": {
+    "buttons": "Flat design, `rounded-sm`, sharp interactions. Primary is stark black (`bg-slate-950 hover:bg-slate-800 text-white`). Secondary is white with 1px border (`bg-white border border-slate-200 hover:border-slate-950`).",
+    "cards": "No shadow. `border border-slate-200 bg-white rounded-sm`. Optional: omit border-radius entirely for a more brutalist Foundry feel.",
+    "badges": "Sharp, rectangular `rounded-sm`. Severe alerts use bright solid colors to draw the eye immediately. Watchlist chips are pill-shaped `rounded-full` to distinguish them from severity badges.",
+    "tables": "Dense. `text-sm`. 1px borders between rows. Header row with uppercase tiny typography (`text-xs tracking-wider`). Highlight hover row distinctly.",
+    "ai_explanation_block": "Visually distinct block. Pale yellow background, monospaced label `[AI SUMMARY]`, serif or editorial body text to contrast with the dense data."
+  },
+  "icons": {
+    "library": "Phosphor Icons (@phosphor-icons/react)",
+    "style": "Regular or Bold weight, technical, crisp."
+  },
+  "key_screens": {
+    "google_login": "Split screen layout. Left: stark white minimal auth form. Right: `hero_landing_data_viz` image taking up 50% of the screen.",
+    "dashboard_stats": "F-pattern layout. Top left: North Star Metric (Total alerts ingested). Recharts for ingestion volume and confidence distribution.",
+    "alerts_feed": "Dense list. Columns for Severity (Badge), Date, Product, Region, Source, and Confidence Score (mini bar chart inline).",
+    "recall_detail": "Split view. Top: AI Summary. Bottom: Data Lineage side-by-side table comparing `Original Source Value` vs `Normalized Platform Value`.",
+    "watchlist_manager": "Inline input with multi-select chips for ingredients and products. Fast and keyboard accessible."
+  },
+  "media": {
+    "hero_landing_data_viz": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/cd5b77c7-eb90-4f59-9acb-ac9d1aaf4029/images/15e8835d7f038df3eafb5878f98de1c2d68d389692c8561ddeedd909c02a5e9b.png",
+      "description": "A highly technical, editorial data visualization background. Stark white and deep charcoal with bright red and yellow accent data points. Used for the Google Login landing page right-side panel.",
+      "category": "hero"
+    },
+    "auth_side_graphic": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/cd5b77c7-eb90-4f59-9acb-ac9d1aaf4029/images/dcda2bee74751f20e224c215a58e47cf03901fe789921a524148ccfee09f5c56.png",
+      "description": "Abstract data journalism graphic, crisp 1px lines. Alternative option for auth screen.",
+      "category": "background"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Ensure all Shadcn components (Button, Card, Input, Table) are overridden to use `rounded-sm` or `rounded-none` and remove all shadows.",
+    "Use Phosphor Icons for a technical look.",
+    "Install Google Fonts 'Chivo' (headings) and 'IBM Plex Sans' (body) in `index.html`.",
+    "Use Recharts for the Ingestion Stats. Ensure chart tooltips match the Swiss/Technical theme (flat, border, no shadow).",
+    "For the Confidence Score, build a small inline meter component (e.g., an SVG bar or div with width percentage) colored by score.",
+    "The Data Lineage view should clearly show 'Original' vs 'Inferred' using distinct visual cues (e.g., italicizing inferred data or tagging it with an AI icon).",
+    "Remember to include `data-testid` on all interactive elements as per the critical rules."
+  ]
+}

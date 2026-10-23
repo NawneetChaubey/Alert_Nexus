@@ -1,0 +1,88 @@
+"""Seed data for ingredient master, product->ingredient map, and regional banned substances."""
+
+# -- Ingredient master: canonical name + synonyms + category
+INGREDIENT_MASTER = [
+    # Drug APIs
+    {"name": "acetaminophen", "synonyms": ["paracetamol", "apap", "n-acetyl-p-aminophenol"], "category": "drug"},
+    {"name": "ibuprofen", "synonyms": ["ibuprofen sodium", "advil"], "category": "drug"},
+    {"name": "aspirin", "synonyms": ["acetylsalicylic acid", "asa"], "category": "drug"},
+    {"name": "amoxicillin", "synonyms": ["amox"], "category": "drug"},
+    {"name": "metformin", "synonyms": [], "category": "drug"},
+    {"name": "losartan", "synonyms": [], "category": "drug"},
+    {"name": "valsartan", "synonyms": [], "category": "drug"},
+    {"name": "ranitidine", "synonyms": ["zantac"], "category": "drug"},
+    {"name": "omeprazole", "synonyms": ["prilosec"], "category": "drug"},
+    {"name": "atorvastatin", "synonyms": ["lipitor"], "category": "drug"},
+    {"name": "clobetasol propionate", "synonyms": ["clobetasol"], "category": "drug"},
+    {"name": "betamethasone", "synonyms": [], "category": "drug"},
+    {"name": "hydrocortisone", "synonyms": [], "category": "drug"},
+    {"name": "diphenhydramine", "synonyms": ["benadryl"], "category": "drug"},
+    # Cosmetic chemicals
+    {"name": "hydroquinone", "synonyms": ["benzene-1,4-diol"], "category": "cosmetic"},
+    {"name": "mercury", "synonyms": ["mercurous chloride", "calomel"], "category": "cosmetic"},
+    {"name": "lead", "synonyms": ["lead acetate"], "category": "cosmetic"},
+    {"name": "parabens", "synonyms": ["methylparaben", "propylparaben", "butylparaben"], "category": "cosmetic"},
+    {"name": "titanium dioxide", "synonyms": ["tio2"], "category": "cosmetic"},
+    {"name": "formaldehyde", "synonyms": ["methanal", "formalin"], "category": "cosmetic"},
+    {"name": "phthalates", "synonyms": ["dehp", "dbp", "dep"], "category": "cosmetic"},
+    {"name": "triclosan", "synonyms": [], "category": "cosmetic"},
+    {"name": "sodium lauryl sulfate", "synonyms": ["sls"], "category": "cosmetic"},
+    {"name": "retinol", "synonyms": ["vitamin a"], "category": "cosmetic"},
+    {"name": "salicylic acid", "synonyms": [], "category": "cosmetic"},
+    {"name": "benzoyl peroxide", "synonyms": [], "category": "cosmetic"},
+    {"name": "glycolic acid", "synonyms": [], "category": "cosmetic"},
+    {"name": "oxybenzone", "synonyms": ["benzophenone-3"], "category": "cosmetic"},
+    {"name": "octinoxate", "synonyms": ["ethylhexyl methoxycinnamate"], "category": "cosmetic"},
+    {"name": "talc", "synonyms": [], "category": "cosmetic"},
+    {"name": "coal tar", "synonyms": [], "category": "cosmetic"},
+    {"name": "toluene", "synonyms": [], "category": "cosmetic"},
+    # Contamination/microbial
+    {"name": "burkholderia", "synonyms": ["burkholderia cepacia"], "category": "contaminant"},
+    {"name": "pseudomonas", "synonyms": ["pseudomonas aeruginosa"], "category": "contaminant"},
+    {"name": "listeria", "synonyms": ["listeria monocytogenes"], "category": "contaminant"},
+    {"name": "e. coli", "synonyms": ["escherichia coli"], "category": "contaminant"},
+    {"name": "salmonella", "synonyms": [], "category": "contaminant"},
+    {"name": "nitrosamine", "synonyms": ["ndma", "ndea"], "category": "contaminant"},
+    {"name": "benzene", "synonyms": [], "category": "contaminant"},
+    {"name": "asbestos", "synonyms": [], "category": "contaminant"},
+]
+
+# -- Product -> ingredient mapping (used when ingredients missing)
+PRODUCT_INGREDIENT_MAP = [
+    {"product_name": "paracetamol", "ingredients": ["acetaminophen"]},
+    {"product_name": "tylenol", "ingredients": ["acetaminophen"]},
+    {"product_name": "advil", "ingredients": ["ibuprofen"]},
+    {"product_name": "zantac", "ingredients": ["ranitidine"]},
+    {"product_name": "lipstick", "ingredients": ["parabens", "titanium dioxide", "lead"]},
+    {"product_name": "skin lightening cream", "ingredients": ["hydroquinone", "mercury"]},
+    {"product_name": "skin lightening oil", "ingredients": ["hydroquinone"]},
+    {"product_name": "whitening cream", "ingredients": ["hydroquinone", "mercury"]},
+    {"product_name": "sunscreen", "ingredients": ["oxybenzone", "octinoxate", "titanium dioxide"]},
+    {"product_name": "shaving cream", "ingredients": ["sodium lauryl sulfate", "parabens"]},
+    {"product_name": "nail polish", "ingredients": ["toluene", "formaldehyde", "phthalates"]},
+    {"product_name": "baby powder", "ingredients": ["talc"]},
+    {"product_name": "hair relaxer", "ingredients": ["formaldehyde"]},
+    {"product_name": "acne cream", "ingredients": ["benzoyl peroxide", "salicylic acid"]},
+    {"product_name": "eczema cream", "ingredients": ["clobetasol propionate", "hydrocortisone"]},
+    {"product_name": "eye drops", "ingredients": ["pseudomonas"]},
+    {"product_name": "hand sanitizer", "ingredients": ["benzene"]},
+]
+
+# -- Regional banned substances / conditional restrictions
+BANNED_SUBSTANCES = [
+    {"region": "EU", "substance": "hydroquinone", "reason": "Prohibited in cosmetic products (Regulation (EC) No 1223/2009 Annex II)."},
+    {"region": "EU", "substance": "mercury", "reason": "Prohibited in all cosmetic products except specific exempted preservatives."},
+    {"region": "EU", "substance": "lead", "reason": "Prohibited as intentionally added ingredient (heavy metal restriction)."},
+    {"region": "EU", "substance": "clobetasol propionate", "reason": "Rx-only corticosteroid; prohibited in over-the-counter cosmetics."},
+    {"region": "EU", "substance": "formaldehyde", "reason": "Restricted; banned as free agent in cosmetics."},
+    {"region": "EU", "substance": "oxybenzone", "reason": "Restricted concentration in sunscreens; usage scrutiny increasing."},
+    {"region": "US", "substance": "ranitidine", "reason": "FDA withdrew all ranitidine products (2020) due to NDMA contamination."},
+    {"region": "US", "substance": "asbestos", "reason": "FDA requires recall where detected; prohibited in cosmetic talc."},
+    {"region": "US", "substance": "nitrosamine", "reason": "FDA acceptable-intake limits; exceeding triggers recall."},
+    {"region": "US", "substance": "benzene", "reason": "Class 1 solvent under ICH Q3C; contamination triggers recall."},
+    {"region": "US", "substance": "lead", "reason": "FDA max 10 ppm in externally-applied cosmetics; stricter for lip products."},
+    {"region": "US", "substance": "mercury", "reason": "FDA prohibits >1 ppm (>65 ppm in eye-area preservative)."},
+    {"region": "EU", "substance": "triclosan", "reason": "Restricted concentration; not permitted in many product types."},
+    {"region": "EU", "substance": "toluene", "reason": "Restricted in nail products (max 25%); prohibited in other cosmetics."},
+    {"region": "EU", "substance": "phthalates", "reason": "DEHP, DBP, BBP prohibited in cosmetics."},
+]
