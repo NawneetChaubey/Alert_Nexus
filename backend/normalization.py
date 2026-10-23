@@ -12,6 +12,7 @@ Semantics Note:
 """
 from __future__ import annotations
 
+import hashlib
 import re
 import uuid
 from datetime import datetime, timezone
@@ -182,6 +183,35 @@ def resolve_ingredients(
     return [f"unknown_compound_{uuid.uuid4().hex[:8]}"], True, "placeholder"
 
 
+def generate_stable_recall_id(mapped: Dict[str, Any], source_display: str) -> str:
+    """Derive a deterministic, stable recall_id for idempotency and dismissal persistence.
+
+    1. Uses source-provided external_id + source if available.
+    2. Otherwise constructs a deterministic fingerprint from core source attributes:
+       source + product_name + batch_number/barcode + recall_reason + region.
+    3. Guarantees that reprocessing the same recall produces the exact same recall_id,
+       while a genuinely new recall for the same product generates a distinct recall_id.
+    """
+    ext_id = str(mapped.get("external_id") or "").strip().lower()
+    src = str(source_display or mapped.get("source_file") or "").strip().lower()
+    if ext_id and ext_id not in ("none", "nan", "null", "n/a", "0", ""):
+        fingerprint = f"{src}::{ext_id}"
+        return f"rec_{hashlib.sha256(fingerprint.encode('utf-8')).hexdigest()[:12]}"
+
+    prod = str(mapped.get("product_name_full") or mapped.get("product_name") or mapped.get("brand") or "").strip().lower()
+    batch = str(mapped.get("batch_number") or mapped.get("barcode") or "").strip().lower()
+    reason = str(mapped.get("recall_reason") or mapped.get("description") or "").strip().lower()[:80]
+    region = str(mapped.get("region_raw") or "").strip().lower()
+
+    core_tokens = [src, prod, batch, reason, region]
+    valid_tokens = [t for t in core_tokens if t and t not in ("none", "nan", "null", "n/a", "")]
+    if valid_tokens:
+        fingerprint = "::".join(core_tokens)
+        return f"rec_{hashlib.sha256(fingerprint.encode('utf-8')).hexdigest()[:12]}"
+
+    return f"rec_{uuid.uuid4().hex[:12]}"
+
+
 # ---------------------------------------------------------------------------
 # Normalize a whole record
 # ---------------------------------------------------------------------------
@@ -191,7 +221,15 @@ def normalize_record(
     product_map: Dict[str, List[str]],
     source_display: str,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-    """Return (normalized, lineage_rows)."""
+    """Return (normalized, lineage_rows). Rejects malformed rows with no identifying data."""
+    # Validation guard: row must have at least one core identifying attribute
+    # (product, brand, reason, description, or external_id)
+    has_product = bool(mapped.get("product_name") or mapped.get("brand"))
+    has_reason = bool(mapped.get("recall_reason") or mapped.get("description"))
+    has_id = bool(mapped.get("external_id") or mapped.get("barcode") or mapped.get("batch_number"))
+    if not (has_product or has_reason or has_id):
+        raise ValueError("Malformed row rejected: contains no identifiable product, brand, reason, or external reference")
+
     inferred_fields: List[str] = []
     lineage: List[Dict[str, Any]] = []
 
@@ -245,17 +283,16 @@ def normalize_record(
         lineage.append({"field_name": "recall_reason", "original_value": None, "inferred_value": recall_reason, "inference_method": "description_fallback"})
 
     # Data completeness score:
-    # Measures the proportion of core fields explicitly provided in the raw record
-    # rather than inferred via heuristic rules or external knowledge bases.
-    # Note: This reflects source data completeness, NOT match probability or match accuracy.
     total_fields = 5  # product_name, severity, region, category, ingredients
     inferred_core_count = len(set(inferred_fields) & {"product_name", "severity", "region", "category", "ingredients"})
     data_completeness_score = round(max(0.0, 1.0 - (inferred_core_count / total_fields)), 3)
-    # Retain 'confidence_score' key for backward compatibility with existing storage, API, and UI schemas
     confidence_score = data_completeness_score
 
+    # Deterministic stable recall_id
+    stable_recall_id = generate_stable_recall_id(mapped, source_display)
+
     normalized = {
-        "recall_id": f"rec_{uuid.uuid4().hex[:12]}",
+        "recall_id": stable_recall_id,
         "product_name": product_name,
         "ingredients": ingredients,
         "category": category,

@@ -63,13 +63,8 @@ export default function Alerts() {
         setActionPendingId(alertId);
         try {
             await api.post(`/alerts/${alertId}/read`);
-            setItems((prev) =>
-                prev.map((item) =>
-                    item.alert_id === alertId ? { ...item, read: true } : item
-                )
-            );
-            setUnread((prev) => Math.max(0, prev - 1));
             toast.success("Alert marked as read");
+            await load();
         } catch (error) {
             console.error(error);
             toast.error("Failed to mark alert as read");
@@ -86,14 +81,8 @@ export default function Alerts() {
         setActionPendingId(alertId);
         try {
             await api.post(`/alerts/${alertId}/dismiss`);
-            // Remove from active view
-            const dismissedItem = items.find((i) => i.alert_id === alertId);
-            setItems((prev) => prev.filter((item) => item.alert_id !== alertId));
-            if (dismissedItem && !dismissedItem.read) {
-                setUnread((prev) => Math.max(0, prev - 1));
-            }
-            setDismissedCount((prev) => prev + 1);
             toast.success("Alert dismissed");
+            await load();
         } catch (error) {
             console.error(error);
             toast.error("Failed to dismiss alert");
@@ -110,9 +99,8 @@ export default function Alerts() {
         setActionPendingId(alertId);
         try {
             await api.post(`/alerts/${alertId}/restore`);
-            setItems((prev) => prev.filter((item) => item.alert_id !== alertId));
-            setDismissedCount((prev) => Math.max(0, prev - 1));
             toast.success("Alert restored to active feed");
+            await load();
         } catch (error) {
             console.error(error);
             toast.error("Failed to restore alert");

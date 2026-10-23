@@ -51,42 +51,49 @@ export default function Recalls() {
     const [isUploadOpen, setIsUploadOpen] = useState(false);
     const [uploadFile, setUploadFile] = useState(null);
     const [uploadValidation, setUploadValidation] = useState(null); // { valid: bool, error?: string }
-    const [uploadState, setUploadState] = useState("idle"); // "idle" | "uploading" | "success" | "error"
+    const [uploadState, setUploadState] = useState("idle"); // "idle" | "uploading" | "success" | "partial_success" | "error"
     const [uploadResult, setUploadResult] = useState(null);
     const [uploadError, setUploadError] = useState(null);
     const fileInputRef = useRef(null);
+    const loadSeqRef = useRef(0);
 
-    const load = async () => {
+    const load = async (overrideSkip = skip, overrideQ = q) => {
+        const seq = ++loadSeqRef.current;
         setLoading(true);
         try {
             const params = new URLSearchParams();
             params.set("limit", String(PAGE));
-            params.set("skip", String(skip));
-            if (q) params.set("q", q);
+            params.set("skip", String(overrideSkip));
+            if (overrideQ) params.set("q", overrideQ);
             if (severity) params.set("severity", severity);
             if (category) params.set("category", category);
             if (region) params.set("region", region);
             if (source) params.set("source", source);
             const { data } = await api.get(`/recalls?${params.toString()}`);
+            if (seq !== loadSeqRef.current) return;
             setItems(data.items || []);
             setTotal(data.total || 0);
         } catch (error) {
-            console.error("Failed to load recalls:", error);
-            toast.error("Failed to load recalls list");
+            if (seq === loadSeqRef.current) {
+                console.error("Failed to load recalls:", error);
+                toast.error("Failed to load recalls list");
+            }
         } finally {
-            setLoading(false);
+            if (seq === loadSeqRef.current) {
+                setLoading(false);
+            }
         }
     };
 
     useEffect(() => {
-        load();
+        load(skip, q);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [skip, severity, category, region, source]);
 
     const onSearch = (e) => {
         e.preventDefault();
         setSkip(0);
-        load();
+        load(0, q);
     };
 
     // Client-side file validation
@@ -146,12 +153,22 @@ export default function Recalls() {
                     "Content-Type": "multipart/form-data",
                 },
             });
-            setUploadResult(response.data);
-            setUploadState("success");
-            toast.success(`Successfully ingested ${response.data.normalized || 0} recalls`);
-            // Refresh recall table
+            const data = response.data;
+            setUploadResult(data);
+            if (data.status === "partial_success") {
+                setUploadState("partial_success");
+                toast.warning(`Partial success: ${data.normalized || 0} imported, ${data.failed_rows || 0} rows rejected.`);
+            } else if (data.status === "failed" || (data.normalized === 0 && (data.raw_rows || 0) > 0)) {
+                setUploadState("error");
+                setUploadError(data.errors?.[0]?.error || "No valid rows could be imported.");
+                toast.error("Ingestion failed: no usable records found");
+            } else {
+                setUploadState("success");
+                toast.success(`Successfully ingested ${data.normalized || 0} recalls`);
+            }
+            // Deterministically refresh recall table at skip 0
             setSkip(0);
-            load();
+            load(0, q);
         } catch (error) {
             console.error("Upload error:", error);
             const detail =
@@ -442,12 +459,21 @@ export default function Recalls() {
                                 </div>
                             )}
 
-                            {uploadState === "success" && uploadResult && (
+                            {/* Success or Partial Success State */}
+                            {(uploadState === "success" || uploadState === "partial_success") && uploadResult && (
                                 <div className="space-y-4">
-                                    <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 text-green-800 rounded-sm">
+                                    <div
+                                        className={`flex items-center gap-2 p-3 border rounded-sm ${
+                                            uploadState === "partial_success"
+                                                ? "bg-amber-50 border-amber-200 text-amber-900"
+                                                : "bg-green-50 border-green-200 text-green-800"
+                                        }`}
+                                    >
                                         <CheckCircle2 size={18} className="shrink-0" />
                                         <span className="text-xs font-mono font-medium">
-                                            Ingestion completed successfully
+                                            {uploadState === "partial_success"
+                                                ? `Partial Ingestion: ${uploadResult.normalized} imported, ${uploadResult.failed_rows} rejected`
+                                                : "Ingestion completed successfully"}
                                         </span>
                                     </div>
 
@@ -471,21 +497,41 @@ export default function Recalls() {
                                             </span>
                                         </div>
                                         <div>
+                                            <span className="text-slate-500 text-[10px] uppercase block">Rejected Rows</span>
+                                            <span className={`font-bold ${uploadResult.failed_rows > 0 ? "text-amber-700" : "text-slate-500"}`}>
+                                                {uploadResult.failed_rows || 0}
+                                            </span>
+                                        </div>
+                                        <div>
                                             <span className="text-slate-500 text-[10px] uppercase block">Lineage Logged</span>
                                             <span className="font-bold text-slate-900">
                                                 {uploadResult.lineage_rows}
                                             </span>
                                         </div>
-                                        <div className="col-span-2 border-t border-slate-200 pt-2 flex items-center justify-between">
-                                            <span className="text-slate-600 flex items-center gap-1.5">
-                                                <ShieldAlert size={14} className="text-red-600" />
-                                                Alerts Triggered:
-                                            </span>
+                                        <div>
+                                            <span className="text-slate-500 text-[10px] uppercase block">Alerts Created</span>
                                             <span className="font-bold text-red-600">
                                                 {uploadResult.alerts_created}
                                             </span>
                                         </div>
                                     </div>
+
+                                    {/* Row Error Details on Partial Success */}
+                                    {uploadResult.errors?.length > 0 && (
+                                        <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-sm">
+                                            <p className="text-[11px] font-mono font-bold text-amber-900 mb-2 uppercase">
+                                                Row Rejection Details ({uploadResult.errors.length}):
+                                            </p>
+                                            <div className="max-h-28 overflow-y-auto space-y-1 font-mono text-[10px] text-amber-800">
+                                                {uploadResult.errors.map((err, idx) => (
+                                                    <div key={idx} className="flex gap-2">
+                                                        <span className="font-bold shrink-0">Row {err.row}:</span>
+                                                        <span className="truncate">{err.error}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -536,7 +582,7 @@ export default function Recalls() {
                                 </button>
                             )}
 
-                            {uploadState === "success" && (
+                            {(uploadState === "success" || uploadState === "partial_success") && (
                                 <>
                                     <button
                                         type="button"

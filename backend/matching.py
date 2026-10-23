@@ -14,6 +14,7 @@ Semantics & Confidence Distinction:
 """
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -21,6 +22,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from rapidfuzz import fuzz
 
 from seed_data import INGREDIENT_MASTER
+
+log = logging.getLogger("matching")
 
 
 # Pre-build canonical alias lookup from master seed data
@@ -257,7 +260,7 @@ def match_watchlist(
 
 
 async def run_matching_for_recall(db, normalized: Dict[str, Any], confidence_threshold: float = 0.25) -> int:
-    """Find all users whose watchlist matches this recall, create alert docs."""
+    """Find all users whose watchlist matches this recall, create alert docs. Preserves dismissed state."""
     # Skip matching when record data completeness is below the threshold
     if normalized.get("confidence_score", 0) < confidence_threshold:
         return 0
@@ -273,8 +276,15 @@ async def run_matching_for_recall(db, normalized: Dict[str, Any], confidence_thr
         is_verified = getattr(match, "is_verified", True)
         evidence_type = getattr(match, "evidence_type", "verified")
 
+        alert_id = f"alert_{normalized['recall_id']}_{wl['user_id']}"
+
+        # Preserve dismissal and prevent duplicates for the same underlying recall
+        existing = await db.alerts.find_one({"user_id": wl["user_id"], "recall_id": normalized["recall_id"]})
+        if existing:
+            continue
+
         alert_doc = {
-            "alert_id": f"alert_{normalized['recall_id']}_{wl['user_id']}",
+            "alert_id": alert_id,
             "user_id": wl["user_id"],
             "recall_id": normalized["recall_id"],
             "product": normalized.get("product_name"),
@@ -296,13 +306,17 @@ async def run_matching_for_recall(db, normalized: Dict[str, Any], confidence_thr
         try:
             await db.alerts.insert_one(alert_doc)
             created += 1
-        except Exception:  # noqa: BLE001 – unique index may collide on re-run
-            pass
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "duplicate key" in err_msg or "e11000" in err_msg or type(e).__name__ == "DuplicateKeyError":
+                continue
+            log.error("Database error inserting alert %s: %s", alert_id, e)
+            raise
     return created
 
 
 async def run_matching_for_user(db, user_id: str, watchlist: Dict[str, List[str]]) -> int:
-    """Backfill: when a watchlist is updated, scan existing recalls for new matches."""
+    """Backfill: when a watchlist is updated, scan existing recalls for new matches. Preserves dismissed state."""
     created = 0
     cursor = db.normalized_recalls.find({}, {"_id": 0})
     async for rec in cursor:
@@ -316,8 +330,15 @@ async def run_matching_for_user(db, user_id: str, watchlist: Dict[str, List[str]
         is_verified = getattr(match, "is_verified", True)
         evidence_type = getattr(match, "evidence_type", "verified")
 
+        alert_id = f"alert_{rec['recall_id']}_{user_id}"
+
+        # Preserve dismissal and prevent duplicates for the same underlying recall
+        existing = await db.alerts.find_one({"user_id": user_id, "recall_id": rec["recall_id"]})
+        if existing:
+            continue
+
         alert_doc = {
-            "alert_id": f"alert_{rec['recall_id']}_{user_id}",
+            "alert_id": alert_id,
             "user_id": user_id,
             "recall_id": rec["recall_id"],
             "product": rec.get("product_name"),
@@ -339,6 +360,10 @@ async def run_matching_for_user(db, user_id: str, watchlist: Dict[str, List[str]
         try:
             await db.alerts.insert_one(alert_doc)
             created += 1
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "duplicate key" in err_msg or "e11000" in err_msg or type(e).__name__ == "DuplicateKeyError":
+                continue
+            log.error("Database error inserting alert %s: %s", alert_id, e)
+            raise
     return created

@@ -12,6 +12,7 @@ import {
     Menu,
     X,
 } from "lucide-react";
+import bgImage from "../assets/Elegant Abstract Waves with Dotted World Map.png";
 
 const NAV = [
     { to: "/dashboard", label: "Overview", icon: LayoutGrid, testid: "nav-dashboard" },
@@ -56,13 +57,10 @@ export default function Layout({ children }) {
 
     return (
         <div
-            className="min-h-screen flex flex-col text-slate-900"
+            className="min-h-screen flex flex-col text-slate-900 bg-cover bg-fixed bg-no-repeat bg-top"
             style={{
                 backgroundColor: "#F2F5FA",
-                backgroundImage: `linear-gradient(rgba(242, 245, 250, 0.94), rgba(242, 245, 250, 0.97)), url("${process.env.PUBLIC_URL || ""}/Elegant%20Abstract%20Waves%20with%20Dotted%20World%20Map.png")`,
-                backgroundSize: "cover",
-                backgroundPosition: "center top",
-                backgroundAttachment: "fixed",
+                backgroundImage: `linear-gradient(rgba(242, 245, 250, 0.35), rgba(242, 245, 250, 0.50)), url("${bgImage}")`,
             }}
         >
             {/* Top Navigation Bar with Hamburger */}
