@@ -48,10 +48,14 @@ api_router.include_router(search_router)
 
 app.include_router(api_router)
 
+cors_origins_raw = os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000")
+cors_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_origins=cors_origins,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -71,11 +75,14 @@ async def on_startup():
             data_dir = local_data
 
     if data_dir.exists():
-        try:
-            result = await bootstrap_ingest(data_dir)
-            log.info("bootstrap ingest from %s: %s", data_dir, result)
-        except Exception:
-            log.exception("bootstrap ingest failed")
+        async def _bg_bootstrap():
+            try:
+                result = await bootstrap_ingest(data_dir)
+                log.info("bootstrap ingest from %s: %s", data_dir, result)
+            except Exception:
+                log.exception("bootstrap ingest failed")
+
+        asyncio.create_task(_bg_bootstrap())
 
 
 @app.on_event("shutdown")

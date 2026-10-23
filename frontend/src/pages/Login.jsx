@@ -13,7 +13,10 @@ export default function Login() {
 
     const handleGoogleSuccess = async (credentialResponse) => {
         try {
-            await api.post("/auth/session", { id_token: credentialResponse.credential });
+            const { data } = await api.post("/auth/session", { id_token: credentialResponse.credential });
+            if (data?.session_token) {
+                localStorage.setItem("med_alert_token", data.session_token);
+            }
             await refresh();
             navigate("/dashboard");
         } catch (error) {
@@ -28,12 +31,21 @@ export default function Login() {
 
     const handleDemoLogin = async () => {
         try {
-            await api.post("/auth/demo-session");
-            await refresh();
-            navigate("/dashboard");
+            const { data } = await api.post("/auth/demo-session");
+            if (data?.session_token) {
+                localStorage.setItem("med_alert_token", data.session_token);
+            }
+            const loggedInUser = await refresh();
+            if (loggedInUser) {
+                toast.success("Logged in as Demo User");
+                navigate("/dashboard");
+            } else {
+                toast.error("Failed to verify demo session. Is the backend running?");
+            }
         } catch (error) {
-            toast.error("Demo login failed.");
-            console.error(error);
+            const detail = error.response?.data?.detail || error.message || "Failed to connect to server";
+            toast.error(`Demo login failed: ${detail}`);
+            console.error("Demo login error:", error);
         }
     };
 

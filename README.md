@@ -1,12 +1,10 @@
-# Global Recall & Compliance Alert Platform
+# Global Recall & Compliance Alert Platform (Med-Alert)
 
-An enterprise-grade regulatory intelligence system designed to ingest, process, and normalize fragmented and inconsistent global recall datasets (e.g., EU Safety Gate, US FDA, Health Canada, and third-party country logs). The system converts raw spreadsheets into structured, normalized safety alerts, calculates metadata confidence scores, logs full data lineages, and matches occurrences against user watchlists to generate real-time alerts. It integrates Claude Sonnet 4.5 to provide plain-English, consumer-friendly summaries.
+An enterprise-grade regulatory intelligence platform designed to ingest, normalize, and match fragmented and inconsistent global recall datasets (e.g., EU Safety Gate, US FDA, Health Canada, and third-party regulatory logs). The system unifies raw spreadsheets into structured, normalized safety alerts, calculates data completeness scores, maintains full field-level data lineages, and matches recalls against user watchlists to generate real-time alerts.
 
 ---
 
 ## 🏗️ System Architecture
-
-The platform processes records using a multi-phase pipeline:
 
 ```mermaid
 graph TD
@@ -18,193 +16,204 @@ graph TD
     E -->|Lineage Tracking| G[(data_lineage)]
     F -->|Matching Engine matching.py| H[Watchlist Matching]
     H -->|Product Fuzzy & Ingredient Exact| I[(alerts)]
-    F -->|On-Demand explain_recall| J[Claude 4.5 LLM Service]
-    J -->|JSON Response| K[(recall_explanations)]
+    F -->|On-Demand explain_recall| J[Regulatory LLM Service]
+    J -->|Structured 4-Part Analysis| K[(recall_explanations)]
 ```
 
 ---
 
-## 🛠️ Key Features
+## 🛠️ Key Capabilities
 
-1. **Schema Mapping & Unification**: Maps 30+ column aliases from various international regulatory templates (US FDA, Health Canada, EU Safety Gate, etc.) to a unified database shape.
-2. **Deterministic & Rule-Based Inference**: Automatically resolves missing regions, categorizes recalls (drug, cosmetic, device, food), infers severity (low, medium, high), and extracts ingredients.
-3. **Data Lineage & Confidence Metrics**: Computes confidence scores using the ratio of inferred vs. explicitly provided fields. Every change or inference is recorded with its original value, inferred value, and method in a data lineage audit trail.
-4. **Fuzzy & Exact Matcher**: Uses `rapidfuzz` (threshold $\ge 80$) to match watchlisted product names and exact/substring comparisons to match ingredients, generating real-time user-scoped alerts.
-5. **AI Summaries**: Generates concise, structured, consumer-friendly explanations using Claude Sonnet 4.5 (with built-in database caching).
-6. **Bloomberg-style UI Dashboard**: Provides a dense data-visualization dashboard featuring interactive metric grids, charts, full filterable feeds, a lineage inspector, autocomplete search, and watchlist management.
-
----
-
-## 📁 Codebase Walkthrough
-
-### 1. Backend Core ([backend/](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend))
-
-- [server.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/server.py): FastAPIs entry point. Registers routers, CORS middleware, initializes database indexes, seeds reference databases, starts the in-process queue worker, and triggers bootstrap folder ingestion.
-- [db.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/db.py): Creates the MongoDB client via `motor`, loads the database instance, and builds all essential indexes (unique, text, compound).
-- [pipeline.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/pipeline.py): Orchestrates the end-to-end processing pipeline, linking ingestion, mapping, normalization, lineage logging, and matching.
-- [ingestion.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/ingestion.py): Parses CSV and Excel files robustly. Incorporates automatic header row detection to skip spreadsheet banners.
-- [mapping.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/mapping.py): Maps global agency schemas to canonical field keys using column aliases.
-- [normalization.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/normalization.py): Contains inference logic (keywords for severity, source file origins for regions, descriptions for category) and ingredient extraction.
-- [matching.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/matching.py): Matches incoming recalls against all user watchlists and runs backfills when a watchlist is updated.
-- [llm_service.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/llm_service.py): Generates structured explanations using Claude Sonnet 4.5.
-- [queue_worker.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/queue_worker.py): In-process task queue that logs job documents (`queued`, `running`, `completed`, `failed`) to MongoDB.
-- [seed_data.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/seed_data.py): Seeds database with 48 ingredient definitions, 17 product mappings, and 15 regional banned substances (EU, US).
-
-#### API Routers ([backend/routers/](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/routers))
-- [auth.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/auth.py): Implements session-based user authentication using the Google Social Login flow.
-- [watchlist.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/routers/watchlist.py): Manages product and ingredient watchlist items, returns autocomplete suggestions.
-- [alerts.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/routers/alerts.py): Returns and filters compliance alerts for the authenticated user.
-- [recalls.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/routers/recalls.py): Retrieves global recalls with pagination, metadata searches, and AI explanation generation.
-- [compliance.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/routers/compliance.py): Provides lists of banned substances and regulatory restrictions.
-- [stats.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/routers/stats.py): Aggregates global metrics (severity breakdowns, region ratios, and data confidence buckets).
-- [ingest.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/routers/ingest.py): Endpoint for uploading and processing local CSV or Excel files.
-- [search.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/routers/search.py): Executes regex searches across recalls, ingredients, and banned substances.
+1. **Multi-Source Schema Mapping & Normalization**: Maps 30+ column aliases from diverse international templates to a unified schema with automatic banner skipping and header promotion.
+2. **Deterministic Inference Engine**: Resolves missing regions, categorizes recalls (drug, cosmetic, device, food), infers risk severity (low, medium, high), and extracts ingredients.
+3. **Data Completeness & Full Lineage Audit Trail**: Calculates source data completeness scores based on explicit vs. inferred attributes, maintaining an immutable field-level provenance log.
+4. **High-Precision Matching Engine**: Uses tokenized exact matching and boundary-guarded `rapidfuzz` (threshold $\ge 80$) for watched products, and canonical synonym alias mapping for ingredients. Placeholder/inferred ingredients are clearly distinguished and not treated as verified evidence.
+5. **AI Regulatory Explanations**: Generates evidence-backed structured summaries detailing *What Happened*, *Risk Level*, *Who is Affected*, and *What to Do* with automatic database caching.
+6. **Zero-Database-Dependency In-Memory Mode**: Built-in fallback to `mongomock-motor` allows running the entire backend, queries, and aggregations without needing an external MongoDB installation.
+7. **One-Click Demo Access**: Seeded test harness session enables instant one-click login without requiring Google OAuth credentials.
 
 ---
 
-### 2. Frontend Application ([frontend/](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/frontend))
-
-- [App.js](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/frontend/src/App.js): Initializes router rules, intercepts OAuth credentials, and registers layout guards.
-- [index.js](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/frontend/src/index.js): Entry point for React rendering.
-- [index.css](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/frontend/src/index.css): Sets up custom font families (Chivo, IBM Plex) and modern color tokens.
-- [AuthContext.jsx](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/frontend/src/contexts/AuthContext.jsx): Stores session details and coordinates user profile synchronization.
-- [api.js](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/frontend/src/lib/api.js): Exposes the custom configured `axios` instance.
-
-#### Page Components ([frontend/src/pages/](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/frontend/src/pages))
-- [Login.jsx](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/frontend/src/pages/Login.jsx): Splitted editorial portal featuring statistics callouts.
-- [Dashboard.jsx](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/frontend/src/pages/Dashboard.jsx): Visual analytics including Recharts pie/bar graphs, recent alert tables, and database health meters.
-- [Alerts.jsx](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/frontend/src/pages/Alerts.jsx): User-specific alerts triggered by product or ingredient match.
-- [Recalls.jsx](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/frontend/src/pages/Recalls.jsx): Large tabular view of all ingested global recalls, complete with pagination, search, and region/severity filters.
-- [RecallDetail.jsx](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/frontend/src/pages/RecallDetail.jsx): Displays full metadata, AI-generated consumer summaries, and fields lineage tables.
-- [Watchlist.jsx](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/frontend/src/pages/Watchlist.jsx): Allows adding and removing products and ingredients, with autocomplete suggestions.
-- [Compliance.jsx](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/frontend/src/pages/Compliance.jsx): Explorable lookup catalog of regional banned substances.
-
----
-
-## ⚙️ Setup and Installation
+## 🚀 Quick Start (Under 2 Minutes)
 
 ### Prerequisites
-
-Ensure you have the following installed on your machine:
-- **Python**: v3.10 or higher
-- **Node.js**: v18 or higher (along with `npm` or `yarn`)
-- **MongoDB**: An active local instance (or an accessible Atlas URI)
+- **Python**: v3.10 or higher (Python 3.10–3.14 supported)
+- **Node.js**: v18 or higher (Node.js v20+ with `yarn` or `npm`)
+- *(Optional)* **MongoDB**: Not required! The platform runs an in-memory MongoDB engine (`mongomock-motor`) by default.
 
 ---
 
-### Step 1: Database Initialization
+### Step 1: Start the Backend Server
 
-1. Start your MongoDB server locally (default port: `27017`).
-2. (Optional) **Seed a local test session/user** for bypass or API testing:
-   Open a terminal and run `mongosh` (or use a GUI client) to execute the following snippet in your database (e.g., `med-alert`):
-   ```javascript
-   use med-alert
-
-   // Seed user
-   db.users.insertOne({
-       "user_id": "test-user-harness",
-       "email": "test@example.com",
-       "name": "Test User",
-       "picture": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=80&h=80&q=80",
-       "created_at": new Date().toISOString(),
-       "last_login": new Date().toISOString()
-   })
-
-   // Seed session token
-   db.user_sessions.insertOne({
-       "session_token": "test_session_harness",
-       "user_id": "test-user-harness",
-       "created_at": new Date().toISOString(),
-       "expires_at": new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString() // 10 years expiration
-   })
-
-   // Initialize watchlist
-   db.watchlists.insertOne({
-       "user_id": "test-user-harness",
-       "products": ["TEST_Product_123"],
-       "ingredients": ["mercury", "hydroquinone"],
-       "updated_at": new Date().toISOString()
-   })
-   ```
-
----
-
-### Step 2: Backend Setup
-
-1. Open your terminal and navigate to the backend directory:
+1. Open a terminal and navigate to the `backend/` directory:
    ```bash
    cd backend
    ```
-2. Create and activate a Python virtual environment:
+
+2. (Recommended) Activate your Python virtual environment:
    ```bash
+   # Windows PowerShell / CMD:
    python -m venv venv
-   # On Windows:
-   venv\Scripts\activate
-   # On macOS/Linux:
+   .\venv\Scripts\activate
+
+   # macOS / Linux:
+   python3 -m venv venv
    source venv/bin/activate
    ```
-3. Install the required dependencies:
+
+3. Install backend dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-4. Create a `.env` configuration file inside the `backend/` directory:
+
+4. Configure your environment file (`backend/.env`):
    ```ini
    MONGO_URL=mongodb://localhost:27017
-   DB_NAME=med-alert
-   GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
-   CORS_ORIGINS=http://localhost:3000
+   DB_NAME=med_alert
+   USE_MOCK_MONGO=true
+   CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000
    ```
    > [!NOTE]
-   > On startup, the backend automatically creates MongoDB indexes, seeds master reference datasets, and automatically ingests the local spreadsheet datasets located in `../data`.
+   > Setting `USE_MOCK_MONGO=true` enables the in-memory MongoDB mock client. If you have an active MongoDB daemon running on port 27017, you can set `USE_MOCK_MONGO=false` to persist data to your local database.
 
-5. Boot the FastAPI application server:
+5. Start the FastAPI server:
    ```bash
-   uvicorn server:app --host 127.0.0.1 --port 8000 --reload
+   # From the project root or backend folder:
+   python -m uvicorn server:app --host 0.0.0.0 --port 8000
    ```
+   *On startup, the server automatically builds database indexes, seeds reference ingredients and banned substances, and ingests 5,084 baseline records from the `data/` folder.*
+
+   - **API Health Endpoint**: [http://localhost:8000/api/health](http://localhost:8000/api/health)
+   - **Interactive Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
-### Step 3: Frontend Setup
+### Step 2: Start the Frontend Portal
 
-1. Open a new terminal and navigate to the frontend directory:
+1. Open a second terminal and navigate to the `frontend/` directory:
    ```bash
    cd frontend
    ```
-2. Install the node modules:
-   ```bash
-   npm install
-   ```
-3. Create a `.env` configuration file inside the `frontend/` directory:
+
+2. Configure frontend environment variables (`frontend/.env`):
    ```ini
    REACT_APP_BACKEND_URL=http://localhost:8000
-   REACT_APP_GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
+   BROWSER=none
+   PORT=3000
    ```
+
+3. Install frontend packages:
+   ```bash
+   # Using Yarn (recommended):
+   yarn install
+
+   # Or using npm:
+   npm install
+   ```
+
 4. Start the React development server:
    ```bash
-   npm start
-   # Or if using yarn:
+   # Using Yarn (Windows PowerShell):
+   yarn.cmd start
+
+   # Or using Yarn (macOS / Linux):
    yarn start
+
+   # Or using npm:
+   npm.cmd start
    ```
-   The browser should launch automatically. Access the app dashboard at `http://localhost:3000`.
+
+5. Open your browser and navigate to:
+   👉 **[http://localhost:3000](http://localhost:3000)**
 
 ---
 
-## 🧪 Verification and Testing
+### Step 3: Logging In & Exploring the Demo
 
-### Running API Tests
+1. On the landing page (`http://localhost:3000/login`), click **"Quick Demo Access →"** (`data-testid="demo-login-btn"`).
+2. You will be instantly logged in as the pre-authenticated **Demo User** with:
+   - **Watchlist**: Configured with product `Skin Lightening` and ingredients `hydroquinone` and `mercury`.
+   - **Alerts Feed**: Active high-severity alerts matching your watchlist.
+   - **Recalls Explorer**: Search, filter by region (EU, US, etc.), and view field-level data lineages.
+   - **AI Summary**: Click any recall to view its AI-generated regulatory explanation.
+   - **Data Ingestion**: Navigate to the file upload section to upload custom CSV or Excel files.
 
-Automated integration tests are located in [test_backend_api.py](file:///c:/Users/Lenovo/Desktop/Med-Alert-101-main/backend/tests/test_backend_api.py) and test all endpoints (health, authentication, recalls, alerts, watchlists, stats, search, ingest).
+---
 
-To execute the tests:
-1. Ensure the backend server is running (with the database seeded).
-2. Open a terminal in the backend directory.
-3. Configure the backend URL environment variable and run `pytest`:
-   ```bash
-   # Windows PowerShell:
-   $env:REACT_APP_BACKEND_URL="http://127.0.0.1:8000"
-   pytest tests/test_backend_api.py -v --tb=short
+## 🧪 Testing & Verification
 
-   # macOS/Linux:
-   export REACT_APP_BACKEND_URL="http://127.0.0.1:8000"
-   pytest tests/test_backend_api.py -v --tb=short
-   ```
+### Running the Live Integration Test Suite
+
+An automated runner is included in the project root to test all 26 backend endpoints against a live server instance:
+
+```bash
+# From the project root:
+python run_api_integration.py
+```
+
+This runner boots the Uvicorn backend, polls the health endpoint until startup and data seeding are verified, executes `pytest backend/tests/test_backend_api.py -v`, and gracefully terminates the server.
+
+### Running Pytest Directly
+
+If your backend is already running on `http://127.0.0.1:8000`:
+
+```bash
+# Windows PowerShell:
+$env:REACT_APP_BACKEND_URL="http://127.0.0.1:8000"
+$env:PYTHONPATH="backend"
+pytest backend/tests/test_backend_api.py -v --tb=short
+
+# macOS / Linux:
+export REACT_APP_BACKEND_URL="http://127.0.0.1:8000"
+export PYTHONPATH="backend"
+pytest backend/tests/test_backend_api.py -v --tb=short
+```
+
+---
+
+## 📂 Controlled Demo Datasets
+
+Controlled sample files are provided in `data/demo/` for demonstrating end-to-end ingestion and alert matching:
+
+- `data/demo/valid_controlled_recall.csv`: Contains controlled recall matching `CardioGuard 500mg`, ingredient match on `GlowMax Bleaching Complex` (Hydroquinone), inferred ingredient recall `Tylenol Extra Strength`, and negative control `Orthopedic Knee Brace Model X`.
+- `data/demo/valid_controlled_recall.xlsx`: Contains `DermaBright Night Cream` (Calomel -> Mercury) and negative control `Stainless Steel Surgical Scissors`.
+
+You can upload either file through the portal UI or via `POST /api/ingest/upload` to observe real-time ingestion, lineage tracking, and alert triggers.
+
+---
+
+## 📁 Project Structure
+
+```
+Med-Alert-101-main/
+├── backend/
+│   ├── auth.py              # Social login, demo session, & token validation
+│   ├── db.py                # Database connection with AsyncMongoMockClient fallback
+│   ├── ingestion.py         # CSV/XLSX streaming parser & raw storage
+│   ├── llm_service.py       # Evidence-backed regulatory explanations
+│   ├── mapping.py           # Schema unification & alias mapping
+│   ├── matching.py          # Watchlist matching engine (Rapidfuzz + canonical synonyms)
+│   ├── normalization.py     # Deterministic inference & lineage generation
+│   ├── pipeline.py          # Orchestration pipeline & startup bootstrap
+│   ├── queue_worker.py      # Background ingestion task queue
+│   ├── seed_data.py         # Ingredients master & banned substances
+│   ├── server.py            # FastAPI application entry point
+│   └── tests/
+│       ├── test_backend_api.py       # 26-test comprehensive API integration suite
+│       ├── test_ingest_reliability.py# File validation & temporary file isolation tests
+│       └── test_matching_regression.py # Matching engine regression suite
+├── data/
+│   ├── demo/                # Controlled sample datasets for demo & regression
+│   └── *.xlsx, *.csv        # Baseline historical recall datasets (5,000+ records)
+├── frontend/
+│   ├── public/              # Static assets (including landing page imagery)
+│   ├── src/
+│   │   ├── components/      # UI components (Layout, ProtectedRoute, MetricCard)
+│   │   ├── contexts/        # AuthContext for session management
+│   │   ├── pages/           # Dashboard, Recalls, Alerts, Watchlist, Compliance, Login
+│   │   └── App.js           # Router configuration
+│   ├── craco.config.js      # Build config with path alias resolution
+│   └── package.json         # React 19 dependencies & scripts
+├── run_api_integration.py   # Standalone live test runner
+└── README.md                # Project documentation & instructions
+```

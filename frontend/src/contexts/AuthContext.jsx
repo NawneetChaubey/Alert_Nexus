@@ -11,8 +11,10 @@ export const AuthProvider = ({ children }) => {
         try {
             const { data } = await api.get("/auth/me");
             setUser(data);
+            return data;
         } catch {
             setUser(null);
+            return null;
         } finally {
             setLoading(false);
         }
@@ -28,6 +30,7 @@ export const AuthProvider = ({ children }) => {
         } catch {
             /* ignore */
         }
+        localStorage.removeItem("med_alert_token");
         setUser(null);
     }, []);
 

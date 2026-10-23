@@ -136,7 +136,7 @@ async def create_session(request: Request, response: Response):
     )
     
     user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-    return {"user": user_doc}
+    return {"user": user_doc, "session_token": session_token}
 
 
 @router.post("/demo-session")

@@ -339,6 +339,52 @@ class TestAlerts:
         assert data.get("ok") == True
         print("✓ Mark all read works")
 
+    def test_alerts_dismiss_and_restore(self, auth_client):
+        # 1. Fetch active alerts
+        res = auth_client.get(f"{BASE_URL}/api/alerts")
+        assert res.status_code == 200
+        active_items = res.json().get("items", [])
+        if not active_items:
+            pytest.skip("No active alerts present to test dismissal")
+
+        target_id = active_items[0]["alert_id"]
+
+        # 2. Dismiss the alert
+        dismiss_res = auth_client.post(f"{BASE_URL}/api/alerts/{target_id}/dismiss")
+        assert dismiss_res.status_code == 200
+        assert dismiss_res.json().get("ok") == True
+        assert dismiss_res.json().get("dismissed") == True
+
+        # 3. Verify it is excluded from active alerts
+        after_dismiss = auth_client.get(f"{BASE_URL}/api/alerts")
+        assert after_dismiss.status_code == 200
+        after_ids = [a["alert_id"] for a in after_dismiss.json().get("items", [])]
+        assert target_id not in after_ids, "Dismissed alert should not appear in active alerts"
+
+        # 4. Verify it is present in dismissed view
+        dismissed_view = auth_client.get(f"{BASE_URL}/api/alerts?status=dismissed")
+        assert dismissed_view.status_code == 200
+        dismissed_ids = [a["alert_id"] for a in dismissed_view.json().get("items", [])]
+        assert target_id in dismissed_ids, "Dismissed alert should appear in status=dismissed query"
+
+        # 5. Restore the alert
+        restore_res = auth_client.post(f"{BASE_URL}/api/alerts/{target_id}/restore")
+        assert restore_res.status_code == 200
+        assert restore_res.json().get("ok") == True
+        assert restore_res.json().get("dismissed") == False
+
+        # 6. Verify it is back in active alerts
+        restored_view = auth_client.get(f"{BASE_URL}/api/alerts")
+        assert restored_view.status_code == 200
+        restored_ids = [a["alert_id"] for a in restored_view.json().get("items", [])]
+        assert target_id in restored_ids, "Restored alert should reappear in active alerts"
+        print(f"✓ Alert {target_id} dismiss and restore cycle verified")
+
+    def test_alerts_dismiss_invalid_id(self, auth_client):
+        response = auth_client.post(f"{BASE_URL}/api/alerts/invalid_id_not_found/dismiss")
+        assert response.status_code == 404
+        print("✓ Dismiss non-existent alert returns 404")
+
 
 class TestSearch:
     """Global search endpoint tests"""

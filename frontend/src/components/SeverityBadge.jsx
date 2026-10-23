@@ -1,10 +1,10 @@
 import React from "react";
 
 const STYLES = {
-    high: "bg-red-600 text-white",
-    medium: "bg-amber-500 text-white",
-    low: "bg-blue-600 text-white",
-    unknown: "bg-slate-500 text-white",
+    high: "bg-red-50 text-red-700 border border-red-200",
+    medium: "bg-amber-50 text-amber-700 border border-amber-200",
+    low: "bg-blue-50 text-blue-700 border border-blue-200",
+    unknown: "bg-slate-50 text-slate-600 border border-slate-200",
 };
 
 export default function SeverityBadge({ severity = "unknown", size = "md" }) {
