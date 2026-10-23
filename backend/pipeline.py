@@ -1,6 +1,7 @@
 """End-to-end processing pipeline: raw -> mapped -> normalized -> matching."""
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -9,7 +10,7 @@ from typing import Any, Dict, List
 from fastapi.concurrency import run_in_threadpool
 
 from db import db
-from ingestion import parse_file, store_raw_records
+from ingestion import manual_upload_archive_dir, parse_file, store_raw_records
 from mapping import map_record, derive_source_name
 from matching import run_matching_for_recall
 from normalization import normalize_record
@@ -194,3 +195,35 @@ async def bootstrap_ingest(data_dir: Path) -> Dict[str, Any]:
             pass
 
     return {"results": results}
+
+
+async def restore_manual_uploads() -> Dict[str, Any]:
+    """Reload archived portal uploads into a fresh in-memory database on startup."""
+    archive_dir = manual_upload_archive_dir()
+    if not archive_dir.exists():
+        return {"restored": 0, "results": []}
+
+    results: List[Dict[str, Any]] = []
+    for manifest_path in sorted(archive_dir.glob("*.json")):
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            stored_name = str(manifest.get("stored_file") or "")
+            if not stored_name or Path(stored_name).name != stored_name:
+                raise ValueError("invalid archived filename")
+
+            archived_path = archive_dir / stored_name
+            if not archived_path.is_file():
+                raise FileNotFoundError(f"Archived upload is missing: {stored_name}")
+
+            result = await ingest_file(
+                archived_path,
+                run_matching=True,
+                source_name=str(manifest.get("source_file") or stored_name),
+            )
+            results.append(result)
+        except Exception as exc:  # noqa: BLE001
+            log.exception("failed to restore archived upload %s", manifest_path.name)
+            results.append({"source_file": manifest_path.name, "error": str(exc)})
+
+    restored = sum(1 for item in results if item.get("raw_rows", 0) > 0)
+    return {"restored": restored, "results": results}

@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
@@ -11,6 +13,23 @@ from typing import Any, Dict, Iterable, List
 import pandas as pd
 
 log = logging.getLogger("ingestion")
+
+
+def manual_upload_archive_dir() -> Path:
+    """Return the durable directory used to keep files uploaded through the portal."""
+    configured_dir = os.environ.get("UPLOAD_ARCHIVE_DIR")
+    if not configured_dir:
+        return Path(__file__).parent / "manual_uploads"
+    archive_dir = Path(configured_dir)
+    return archive_dir if archive_dir.is_absolute() else Path(__file__).parent / archive_dir
+
+
+def write_upload_manifest(archive_dir: Path, manifest: Dict[str, Any]) -> None:
+    """Atomically record the source name for an archived portal upload."""
+    manifest_path = archive_dir / f"{manifest['upload_id']}.json"
+    temp_path = archive_dir / f".{manifest['upload_id']}.json.tmp"
+    temp_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp_path.replace(manifest_path)
 
 
 def parse_csv_bytes(data: bytes) -> List[Dict[str, Any]]:

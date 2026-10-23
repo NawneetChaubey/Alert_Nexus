@@ -29,7 +29,7 @@ graph TD
 3. **Data Completeness & Full Lineage Audit Trail**: Calculates source data completeness scores based on explicit vs. inferred attributes, maintaining an immutable field-level provenance log.
 4. **High-Precision Matching Engine**: Uses tokenized exact matching and boundary-guarded `rapidfuzz` (threshold $\ge 80$) for watched products, and canonical synonym alias mapping for ingredients. Placeholder/inferred ingredients are clearly distinguished and not treated as verified evidence.
 5. **AI Regulatory Explanations**: Generates evidence-backed structured summaries detailing *What Happened*, *Risk Level*, *Who is Affected*, and *What to Do* with automatic database caching.
-6. **Zero-Database-Dependency In-Memory Mode**: Built-in fallback to `mongomock-motor` allows running the entire backend, queries, and aggregations without needing an external MongoDB installation.
+6. **Local Development Without MongoDB**: The backend falls back to `mongomock-motor` when MongoDB is unavailable. Portal uploads are archived under `backend/manual_uploads/` and reloaded at startup so manually uploaded datasets survive a backend restart. Set `UPLOAD_ARCHIVE_DIR` to a persistent mounted directory when deploying without MongoDB.
 7. **One-Click Demo Access**: Seeded test harness session enables instant one-click login without requiring Google OAuth credentials.
 
 ---
@@ -74,7 +74,7 @@ graph TD
    CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000
    ```
    > [!NOTE]
-   > Setting `USE_MOCK_MONGO=true` enables the in-memory MongoDB mock client. If you have an active MongoDB daemon running on port 27017, you can set `USE_MOCK_MONGO=false` to persist data to your local database.
+   > Setting `USE_MOCK_MONGO=true` enables the in-memory MongoDB mock client. Portal uploads are saved under `backend/manual_uploads/` by default and reloaded after a restart. Set `UPLOAD_ARCHIVE_DIR` to a persistent mounted directory if your deployment uses temporary application storage. If you have an active MongoDB daemon running on port 27017, set `USE_MOCK_MONGO=false` to persist records directly in MongoDB.
 
 5. Start the FastAPI server:
    ```bash

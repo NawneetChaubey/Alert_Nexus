@@ -2,13 +2,17 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import tempfile
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
 from auth import get_current_user
+from db import USING_MOCK_MONGO
+from ingestion import manual_upload_archive_dir, write_upload_manifest
 from pipeline import ingest_file
 
 log = logging.getLogger("ingest")
@@ -46,6 +50,10 @@ async def upload(file: UploadFile = File(...), user: dict = Depends(get_current_
     safe_stem = "".join(c for c in Path(raw_filename).stem if c.isalnum() or c in ("-", "_"))[:32] or "upload"
     temp_filename = f"upload_{unique_id}_{safe_stem}{suffix}"
     tmp_path = Path(tempfile.gettempdir()) / temp_filename
+    upload_id = uuid.uuid4().hex
+    archive_path: Path | None = None
+    manifest_path: Path | None = None
+    archive_committed = False
 
     total_bytes = 0
     try:
@@ -66,16 +74,43 @@ async def upload(file: UploadFile = File(...), user: dict = Depends(get_current_
         if total_bytes == 0:
             raise HTTPException(status_code=400, detail="file is empty (0 bytes)")
 
+        # Keep uploads only when Mongo is in-memory; persistent Mongo already
+        # stores the processed rows and does not need an extra file copy.
+        archive_dir = manual_upload_archive_dir() if USING_MOCK_MONGO else None
+        if archive_dir is not None:
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            archive_path = archive_dir / f"{upload_id}{suffix}"
+            manifest_path = archive_dir / f"{upload_id}.json"
+            shutil.copyfile(tmp_path, archive_path)
+            write_upload_manifest(archive_dir, {
+                "upload_id": upload_id,
+                "stored_file": archive_path.name,
+                "source_file": raw_filename,
+                "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            })
+
         try:
             result = await ingest_file(tmp_path, run_matching=True, source_name=raw_filename)
-            return result
         except ValueError as ve:
             raise HTTPException(status_code=400, detail=str(ve))
         except Exception as e:
             log.exception("failed to process uploaded file %s", raw_filename)
             raise HTTPException(status_code=400, detail=f"failed to process file: {e}")
 
+        if result.get("raw_rows", 0) > 0:
+            archive_committed = True
+            result["persisted"] = True
+        return result
+
     finally:
+        if not archive_committed:
+            for path in (manifest_path, archive_path):
+                if path is not None and path.exists():
+                    try:
+                        path.unlink()
+                    except Exception as e:
+                        log.warning("failed to delete incomplete upload archive %s: %s", path, e)
+
         # Guaranteed cleanup in finally block
         if tmp_path.exists():
             try:

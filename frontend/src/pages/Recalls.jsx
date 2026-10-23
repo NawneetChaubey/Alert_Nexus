@@ -157,14 +157,16 @@ export default function Recalls() {
             setUploadResult(data);
             if (data.status === "partial_success") {
                 setUploadState("partial_success");
-                toast.warning(`Partial success: ${data.normalized || 0} imported, ${data.failed_rows || 0} rows rejected.`);
+                toast.warning(`Partial success: ${data.normalized || 0} saved to backend, ${data.failed_rows || 0} rows rejected.`);
             } else if (data.status === "failed" || (data.normalized === 0 && (data.raw_rows || 0) > 0)) {
                 setUploadState("error");
                 setUploadError(data.errors?.[0]?.error || "No valid rows could be imported.");
-                toast.error("Ingestion failed: no usable records found");
+                toast.error(data.persisted
+                    ? "No valid recalls created; the source file and raw rows were saved to the backend"
+                    : "Ingestion failed: no usable records found");
             } else {
                 setUploadState("success");
-                toast.success(`Successfully ingested ${data.normalized || 0} recalls`);
+                toast.success(`Saved ${data.normalized || 0} recalls to the backend`);
             }
             // Deterministically refresh recall table at skip 0
             setSkip(0);
@@ -472,8 +474,10 @@ export default function Recalls() {
                                         <CheckCircle2 size={18} className="shrink-0" />
                                         <span className="text-xs font-mono font-medium">
                                             {uploadState === "partial_success"
-                                                ? `Partial Ingestion: ${uploadResult.normalized} imported, ${uploadResult.failed_rows} rejected`
-                                                : "Ingestion completed successfully"}
+                                                ? `Partial ingestion: ${uploadResult.normalized} saved to backend, ${uploadResult.failed_rows} rejected`
+                                                : uploadResult.persisted
+                                                    ? "Saved to backend successfully"
+                                                    : "Ingestion completed successfully"}
                                         </span>
                                     </div>
 
@@ -542,6 +546,11 @@ export default function Recalls() {
                                         <div className="text-xs">
                                             <p className="font-bold">Ingestion failed</p>
                                             <p className="mt-1 font-mono text-[11px] text-red-700">{uploadError}</p>
+                                            {uploadResult?.persisted && (
+                                                <p className="mt-2 text-[11px] text-slate-700">
+                                                    The source file and raw rows were saved to the backend, but no recall could be normalized.
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

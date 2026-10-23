@@ -16,10 +16,12 @@ _db_name = os.environ.get("DB_NAME", "med_alert")
 _use_mock_env = os.environ.get("USE_MOCK_MONGO", "").strip().lower()
 
 _client = None
+USING_MOCK_MONGO = False
 
 if _use_mock_env in ("true", "1", "yes"):
     from mongomock_motor import AsyncMongoMockClient
     _client = AsyncMongoMockClient()
+    USING_MOCK_MONGO = True
     log.info("Using in-process AsyncMongoMockClient (USE_MOCK_MONGO=true)")
 else:
     try:
@@ -33,6 +35,7 @@ else:
     except Exception as e:
         from mongomock_motor import AsyncMongoMockClient
         _client = AsyncMongoMockClient()
+        USING_MOCK_MONGO = True
         log.info("Live MongoDB unavailable at %s (%s). Falling back to in-process AsyncMongoMockClient.", _mongo_url, e)
 
 db = _client[_db_name]

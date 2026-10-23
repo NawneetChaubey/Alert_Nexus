@@ -66,6 +66,7 @@ agenthub/agents/youtube/db
 data
 memory
 diagrams
+backend/manual_uploads/
 
 # Archive files and large assets
 **/*.zip

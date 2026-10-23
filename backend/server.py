@@ -12,9 +12,9 @@ from starlette.middleware.cors import CORSMiddleware
 
 load_dotenv(Path(__file__).parent / ".env")
 
-from db import db, ensure_indexes  # noqa: E402
+from db import USING_MOCK_MONGO, db, ensure_indexes  # noqa: E402
 from auth import router as auth_router  # noqa: E402
-from pipeline import bootstrap_ingest, seed_reference_data  # noqa: E402
+from pipeline import bootstrap_ingest, restore_manual_uploads, seed_reference_data  # noqa: E402
 from queue_worker import start_worker, stop_worker  # noqa: E402
 from routers.alerts import router as alerts_router  # noqa: E402
 from routers.compliance import router as compliance_router  # noqa: E402
@@ -73,6 +73,13 @@ async def on_startup():
         local_data = Path(__file__).resolve().parent.parent / "data"
         if local_data.exists():
             data_dir = local_data
+
+    if USING_MOCK_MONGO:
+        try:
+            result = await restore_manual_uploads()
+            log.info("restored manual uploads into in-memory database: %s", result)
+        except Exception:
+            log.exception("manual upload restoration failed")
 
     if data_dir.exists():
         async def _bg_bootstrap():
