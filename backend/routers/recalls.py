@@ -14,6 +14,7 @@ async def list_recalls(
     region: str | None = None,
     category: str | None = None,
     source: str | None = None,
+    sort_by: str = "newest",
     limit: int = 50,
     skip: int = 0,
 ):
@@ -33,9 +34,16 @@ async def list_recalls(
             {"ingredients": {"$regex": q, "$options": "i"}},
         ]
     total = await db.normalized_recalls.count_documents(query)
+
+    # Deterministic compound sorting
+    if sort_by == "oldest":
+        sort_order = [("timestamp", 1), ("recall_id", 1)]
+    else:
+        sort_order = [("timestamp", -1), ("recall_id", -1)]
+
     items = await (
         db.normalized_recalls.find(query, {"_id": 0})
-        .sort("timestamp", -1)
+        .sort(sort_order)
         .skip(skip)
         .limit(min(limit, 200))
         .to_list(200)

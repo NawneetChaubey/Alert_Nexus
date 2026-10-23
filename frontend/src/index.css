@@ -15,8 +15,14 @@ body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background: #F2F5FA;
+    background-color: #F2F5FA;
+    background-image: linear-gradient(rgba(242, 245, 250, 0.35), rgba(242, 245, 250, 0.50)), url("./assets/Elegant Abstract Waves with Dotted World Map.png");
+    background-size: cover;
+    background-position: center top;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
     color: #111827;
+    min-height: 100vh;
 }
 
 code,
@@ -64,7 +70,7 @@ pre,
         @apply border-border;
     }
     body {
-        @apply bg-background text-foreground;
+        @apply text-foreground;
     }
 }
 

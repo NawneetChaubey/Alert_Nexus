@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import Layout from "../components/Layout";
@@ -36,8 +36,8 @@ export default function Dashboard() {
     const [alerts, setAlerts] = useState([]);
     const [recentRecalls, setRecentRecalls] = useState([]);
 
-    useEffect(() => {
-        (async () => {
+    const fetchDashboardData = useCallback(async () => {
+        try {
             const [s, a, r] = await Promise.all([
                 api.get("/stats/ingestion").then((x) => x.data),
                 api.get("/alerts?limit=5").then((x) => x.data),
@@ -46,8 +46,19 @@ export default function Dashboard() {
             setStats(s);
             setAlerts(a.items || []);
             setRecentRecalls(r.items || []);
-        })();
+        } catch (err) {
+            console.error("Dashboard fetch error:", err);
+        }
     }, []);
+
+    useEffect(() => {
+        fetchDashboardData();
+        const handleFocus = () => {
+            fetchDashboardData();
+        };
+        window.addEventListener("focus", handleFocus);
+        return () => window.removeEventListener("focus", handleFocus);
+    }, [fetchDashboardData]);
 
     const severityData = stats
         ? Object.entries(stats.severity || {}).map(([k, v]) => ({

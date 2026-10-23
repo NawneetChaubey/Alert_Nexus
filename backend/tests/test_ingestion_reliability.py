@@ -481,3 +481,106 @@ class TestUploadRouterInvariants:
         # Verify temp file was cleaned up on success
         remaining_temp_files = set(temp_dir.glob("upload_*")) - initial_temp_files
         assert len(remaining_temp_files) == 0
+
+
+# ---------------------------------------------------------------------------
+# 10. Header Normalization and Ingestion Response Contract
+# ---------------------------------------------------------------------------
+
+class TestHeaderNormalizationAndResponseContract:
+    """Verifies header key cleaning and structured ingestion result contracts."""
+
+    def test_norm_key_strips_bom_and_unifies_separators(self):
+        from mapping import _norm_key
+        assert _norm_key("\ufeffProduct_Name") == "product name"
+        assert _norm_key("Product  Name") == "product name"
+        assert _norm_key("Product-Name") == "product name"
+        assert _norm_key("Product / Title") == "product title"
+        assert _norm_key("  BATCH_NO  ") == "batch no"
+
+    def test_map_record_recognizes_punctuation_variants(self):
+        raw1 = {"Product-Name": "Aspirin 100mg", "Batch_No": "LOT-123"}
+        mapped1 = map_record(raw1, "test.csv")
+        assert mapped1["product_name"] == "Aspirin 100mg"
+        assert mapped1["batch_number"] == "LOT-123"
+
+        raw2 = {"\ufeffTrade Name": "Tylenol Extra", "Recall-Reason": "Defect"}
+        mapped2 = map_record(raw2, "test.csv")
+        assert mapped2["product_name"] == "Tylenol Extra"
+        assert mapped2["recall_reason"] == "Defect"
+
+    def test_process_raw_rows_reports_partial_success_on_mixed_validity(self):
+        from pipeline import process_raw_rows
+        from unittest.mock import AsyncMock
+
+        raw_rows = [
+            {"product_name": "Valid Med A", "recall_reason": "Contamination", "severity": "high"},
+            {},  # Completely empty row
+            {"product_name": "Valid Med B", "recall_reason": "Subpotent", "severity": "medium"},
+            {"unrecognized_col_1": "", "unrecognized_col_2": "   "},  # Malformed blank row
+        ]
+
+        mock_db = MagicMock()
+        mock_db.ingredients.find.return_value.to_list = AsyncMock(return_value=[])
+        mock_db.product_ingredient_map.find.return_value.to_list = AsyncMock(return_value=[])
+        mock_db.normalized_recalls.insert_many = AsyncMock()
+        mock_db.data_lineage.insert_many = AsyncMock()
+        mock_db.watchlists.find.return_value = AsyncMock()
+
+        with patch("pipeline.db", mock_db), patch("pipeline.run_matching_for_recall", new_callable=AsyncMock) as mock_match:
+            mock_match.return_value = 1
+            result = run_coro_sync(process_raw_rows(raw_rows, "mixed.csv", run_matching=True))
+
+        assert result["raw_rows"] == 4
+        assert result["normalized"] == 2
+        assert result["failed_rows"] == 2
+        assert result["status"] == "partial_success"
+        assert len(result["errors"]) == 2
+        assert result["errors"][0]["row"] == 2
+        assert result["errors"][1]["row"] == 4
+        assert result["alerts_created"] == 2
+
+    def test_process_raw_rows_reports_failed_when_all_rows_invalid(self):
+        from pipeline import process_raw_rows
+        from unittest.mock import AsyncMock
+
+        raw_rows = [
+            {},
+            {"unrelated_col": "   "},
+        ]
+
+        mock_db = MagicMock()
+        mock_db.ingredients.find.return_value.to_list = AsyncMock(return_value=[])
+        mock_db.product_ingredient_map.find.return_value.to_list = AsyncMock(return_value=[])
+
+        with patch("pipeline.db", mock_db):
+            result = run_coro_sync(process_raw_rows(raw_rows, "all_bad.csv", run_matching=False))
+
+        assert result["raw_rows"] == 2
+        assert result["normalized"] == 0
+        assert result["failed_rows"] == 2
+        assert result["status"] == "failed"
+
+    def test_process_raw_rows_reports_success_when_all_rows_valid(self):
+        from pipeline import process_raw_rows
+        from unittest.mock import AsyncMock
+
+        raw_rows = [
+            {"product_name": "Med 1", "recall_reason": "Reason 1"},
+            {"product_name": "Med 2", "recall_reason": "Reason 2"},
+        ]
+
+        mock_db = MagicMock()
+        mock_db.ingredients.find.return_value.to_list = AsyncMock(return_value=[])
+        mock_db.product_ingredient_map.find.return_value.to_list = AsyncMock(return_value=[])
+        mock_db.normalized_recalls.insert_many = AsyncMock()
+        mock_db.data_lineage.insert_many = AsyncMock()
+
+        with patch("pipeline.db", mock_db):
+            result = run_coro_sync(process_raw_rows(raw_rows, "all_good.csv", run_matching=False))
+
+        assert result["raw_rows"] == 2
+        assert result["normalized"] == 2
+        assert result["failed_rows"] == 0
+        assert result["status"] == "success"
+        assert len(result["errors"]) == 0

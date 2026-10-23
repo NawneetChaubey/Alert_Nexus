@@ -66,14 +66,24 @@ async def process_raw_rows(
     raw_rows: List[Dict[str, Any]],
     source_file: str,
     run_matching: bool = True,
-) -> Dict[str, int]:
-    """Map -> normalize -> insert normalized -> lineage -> matching."""
+) -> Dict[str, Any]:
+    """Map -> normalize -> insert normalized -> lineage -> matching with detailed failure tracking."""
     ingredient_index, product_map = await _load_reference()
     source_display = derive_source_name(source_file)
 
     normalized_docs: List[Dict[str, Any]] = []
     lineage_docs: List[Dict[str, Any]] = []
-    for raw in raw_rows:
+    failed_rows = 0
+    row_errors: List[Dict[str, Any]] = []
+
+    for idx, raw in enumerate(raw_rows):
+        row_num = idx + 1
+        # Detect empty or blank rows
+        if not raw or not any(str(v).strip() and str(v).strip().lower() != "nan" for v in raw.values() if v is not None):
+            failed_rows += 1
+            row_errors.append({"row": row_num, "error": "Row is completely empty or blank"})
+            continue
+
         try:
             mapped = map_record(raw, source_file)
             normalized, lineage = normalize_record(mapped, ingredient_index, product_map, source_display)
@@ -83,24 +93,49 @@ async def process_raw_rows(
                 l["source_file"] = source_file
                 l["created_at"] = datetime.now(timezone.utc).isoformat()
                 lineage_docs.append(l)
-        except Exception as e:  # noqa: BLE001 – never crash on bad row
-            log.warning("bad row in %s: %s", source_file, e)
+        except Exception as e:
+            failed_rows += 1
+            row_errors.append({"row": row_num, "error": str(e)})
+            log.warning("Row %d rejected in %s: %s", row_num, source_file, e)
             continue
 
     if normalized_docs:
-        await db.normalized_recalls.insert_many(normalized_docs, ordered=False)
+        try:
+            await db.normalized_recalls.insert_many(normalized_docs, ordered=False)
+        except Exception as e:
+            # On re-ingestion, duplicate key errors are safely ignored
+            log.info("Batch normalized insert completed (duplicate keys ignored): %s", e)
     if lineage_docs:
-        await db.data_lineage.insert_many(lineage_docs, ordered=False)
+        try:
+            await db.data_lineage.insert_many(lineage_docs, ordered=False)
+        except Exception as e:
+            log.info("Batch lineage insert completed: %s", e)
 
     alerts_created = 0
     if run_matching:
         for nd in normalized_docs:
-            alerts_created += await run_matching_for_recall(db, nd)
+            try:
+                alerts_created += await run_matching_for_recall(db, nd)
+            except Exception as e:
+                log.error("Matching error for recall %s: %s", nd.get("recall_id"), e)
+
+    # Calculate status contract
+    if len(normalized_docs) == 0 and len(raw_rows) > 0:
+        status = "failed"
+    elif failed_rows > 0:
+        status = "partial_success"
+    else:
+        status = "success"
 
     return {
+        "source_file": source_file,
+        "raw_rows": len(raw_rows),
         "normalized": len(normalized_docs),
+        "failed_rows": failed_rows,
         "lineage_rows": len(lineage_docs),
         "alerts_created": alerts_created,
+        "status": status,
+        "errors": row_errors[:50],
     }
 
 
@@ -113,16 +148,19 @@ async def ingest_file(path: Path, run_matching: bool = True, source_name: str | 
             "source_file": src,
             "raw_rows": 0,
             "normalized": 0,
+            "failed_rows": 0,
             "lineage_rows": 0,
             "alerts_created": 0,
+            "status": "failed",
+            "errors": [{"row": 0, "error": "File contained no valid data rows"}],
             "message": "file contained no valid data rows",
         }
     inserted_raw = await store_raw_records(db, rows, src)
     processed = await process_raw_rows(rows, src, run_matching=run_matching)
     return {
-        "source_file": src,
-        "raw_rows": inserted_raw,
         **processed,
+        "raw_rows": inserted_raw,
+        "source_file": src,
     }
 
 

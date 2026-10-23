@@ -487,3 +487,199 @@ class TestAlertDocumentInvariants:
         assert alert_doc["evidence_type"] == "inferred"
 
 
+# ===========================================================================
+# 8. Stable Recall Identity, Dismissal Preservation & Error Surfacing
+# ===========================================================================
+class TestStableRecallIdentityAndDismissalPreservation:
+    """Verifies that recall IDs are stable across re-runs, dismissals persist,
+    and genuinely new recalls create alerts without swallowing unexpected DB errors."""
+
+    def test_reprocessing_same_recall_generates_identical_id(self):
+        from normalization import generate_stable_recall_id
+
+        mapped1 = {
+            "external_id": "EU-ALERT-999",
+            "source_file": "eu_notification.xlsx",
+            "product_name": "Skin Cream",
+        }
+        id1 = generate_stable_recall_id(mapped1, "EU Safety Gate")
+        id2 = generate_stable_recall_id(mapped1, "EU Safety Gate")
+        assert id1 == id2
+        assert id1.startswith("rec_")
+
+        # Fingerprint fallback when external_id is absent
+        mapped_fp = {
+            "external_id": None,
+            "product_name": "Hydro Serum",
+            "batch_number": "BATCH-88",
+            "recall_reason": "Contains toxic mercury",
+            "region_raw": "France",
+            "source_file": "safety_alert.csv",
+        }
+        fp1 = generate_stable_recall_id(mapped_fp, "Safety Alerts")
+        fp2 = generate_stable_recall_id(mapped_fp, "Safety Alerts")
+        assert fp1 == fp2
+
+    def test_different_batch_for_same_product_generates_distinct_id(self):
+        from normalization import generate_stable_recall_id
+
+        mapped_a = {
+            "product_name": "Eye Drops",
+            "batch_number": "LOT-A",
+            "recall_reason": "Bacterial contamination",
+            "region_raw": "US",
+        }
+        mapped_b = {
+            "product_name": "Eye Drops",
+            "batch_number": "LOT-B",
+            "recall_reason": "Bacterial contamination",
+            "region_raw": "US",
+        }
+        id_a = generate_stable_recall_id(mapped_a, "US FDA")
+        id_b = generate_stable_recall_id(mapped_b, "US FDA")
+        assert id_a != id_b
+
+    @staticmethod
+    def _run_sync(coro):
+        result = None
+        stack = [coro]
+        while stack:
+            current = stack[-1]
+            try:
+                val = current.send(result)
+                result = None
+                if hasattr(val, "send"):
+                    stack.append(val)
+            except StopIteration as e:
+                stack.pop()
+                result = e.value
+        return result
+
+    def test_dismissed_alert_remains_dismissed_on_recall_rematch(self):
+        from matching import run_matching_for_recall
+        from unittest.mock import AsyncMock, MagicMock
+
+        normalized = {
+            "recall_id": "rec_stable_123",
+            "product_name": "Tylenol Extra",
+            "confidence_score": 1.0,
+            "data_completeness_score": 1.0,
+            "severity": "high",
+            "region": "US",
+            "source": "US FDA",
+            "ingredients": ["acetaminophen"],
+            "recall_reason": "Contamination",
+        }
+
+        # Mock watchlist for user_1
+        async def mock_cursor_gen():
+            yield {"user_id": "user_1", "products": ["Tylenol Extra"], "ingredients": []}
+
+        mock_db = MagicMock()
+        mock_db.watchlists.find.return_value = mock_cursor_gen()
+        # Simulate that alert was previously dismissed in database
+        mock_db.alerts.find_one = AsyncMock(return_value={
+            "alert_id": "alert_rec_stable_123_user_1",
+            "user_id": "user_1",
+            "recall_id": "rec_stable_123",
+            "dismissed": True,
+        })
+        mock_db.alerts.insert_one = AsyncMock()
+
+        # Run coroutine synchronously without socketpair
+        created = self._run_sync(run_matching_for_recall(mock_db, normalized))
+
+        # Alert should NOT be created again, and insert_one should NOT be called
+        assert created == 0
+        mock_db.alerts.insert_one.assert_not_called()
+
+    def test_dismissed_alert_remains_dismissed_on_watchlist_update(self):
+        from matching import run_matching_for_user
+        from unittest.mock import AsyncMock, MagicMock
+
+        # Mock recall in database
+        async def mock_recalls_gen():
+            yield {
+                "recall_id": "rec_stable_123",
+                "product_name": "Tylenol Extra",
+                "confidence_score": 1.0,
+                "data_completeness_score": 1.0,
+                "severity": "high",
+                "ingredients": ["acetaminophen"],
+            }
+
+        mock_db = MagicMock()
+        mock_db.normalized_recalls.find.return_value = mock_recalls_gen()
+        # Alert already exists and is dismissed
+        mock_db.alerts.find_one = AsyncMock(return_value={
+            "alert_id": "alert_rec_stable_123_user_1",
+            "user_id": "user_1",
+            "recall_id": "rec_stable_123",
+            "dismissed": True,
+        })
+        mock_db.alerts.insert_one = AsyncMock()
+
+        created = self._run_sync(run_matching_for_user(mock_db, "user_1", {"products": ["Tylenol Extra"], "ingredients": []}))
+
+        assert created == 0
+        mock_db.alerts.insert_one.assert_not_called()
+
+    def test_new_recall_for_same_watched_product_creates_new_alert(self):
+        from matching import run_matching_for_recall
+        from unittest.mock import AsyncMock, MagicMock
+
+        # Genuinely new recall for same product name with new stable ID
+        new_recall = {
+            "recall_id": "rec_new_batch_456",
+            "product_name": "Tylenol Extra",
+            "confidence_score": 1.0,
+            "data_completeness_score": 1.0,
+            "severity": "high",
+            "region": "US",
+            "source": "US FDA",
+            "ingredients": ["acetaminophen"],
+            "recall_reason": "Foreign particle",
+        }
+
+        async def mock_cursor_gen():
+            yield {"user_id": "user_1", "products": ["Tylenol Extra"], "ingredients": []}
+
+        mock_db = MagicMock()
+        mock_db.watchlists.find.return_value = mock_cursor_gen()
+        # For this new recall_id, no alert exists yet
+        mock_db.alerts.find_one = AsyncMock(return_value=None)
+        mock_db.alerts.insert_one = AsyncMock()
+
+        created = self._run_sync(run_matching_for_recall(mock_db, new_recall))
+
+        assert created == 1
+        mock_db.alerts.insert_one.assert_called_once()
+        inserted_alert = mock_db.alerts.insert_one.call_args[0][0]
+        assert inserted_alert["alert_id"] == "alert_rec_new_batch_456_user_1"
+        assert inserted_alert["recall_id"] == "rec_new_batch_456"
+
+    def test_unexpected_database_error_is_raised(self):
+        from matching import run_matching_for_recall
+        from unittest.mock import AsyncMock, MagicMock
+
+        normalized = {
+            "recall_id": "rec_db_err_999",
+            "product_name": "Advil PM",
+            "confidence_score": 1.0,
+            "severity": "high",
+        }
+
+        async def mock_cursor_gen():
+            yield {"user_id": "user_1", "products": ["Advil PM"], "ingredients": []}
+
+        mock_db = MagicMock()
+        mock_db.watchlists.find.return_value = mock_cursor_gen()
+        mock_db.alerts.find_one = AsyncMock(return_value=None)
+        # Simulate unexpected non-duplicate DB failure
+        mock_db.alerts.insert_one = AsyncMock(side_effect=RuntimeError("Database connection lost"))
+
+        with pytest.raises(RuntimeError) as exc_info:
+            self._run_sync(run_matching_for_recall(mock_db, normalized))
+        assert "Database connection lost" in str(exc_info.value)
+
+
